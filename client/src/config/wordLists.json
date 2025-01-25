@@ -1,0 +1,7 @@
+{
+  "fruits": ["Apple", "Orange", "Banana", "Mango", "Grape", "Pineapple"],
+  "animals": ["Lion", "Tiger", "Elephant", "Giraffe", "Penguin", "Dolphin"],
+  "countries": ["India", "China", "Brazil", "Russia", "Japan", "Korea"],
+  "colors": ["Blue", "Red", "Green", "Yellow", "Purple", "Orange"],
+  "vehicles": ["Car", "Bike", "Train", "Bus", "Airplane", "Helicopter"]
+}

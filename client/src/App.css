@@ -1,0 +1,90 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.game-container {
+  @apply max-w-2xl mx-auto p-8 bg-white rounded-lg shadow-lg;
+}
+
+.input-container {
+  @apply mb-6;
+}
+
+.input-container input {
+  @apply w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500;
+}
+
+.button-container {
+  @apply space-y-4;
+}
+
+.join-game {
+  @apply flex flex-col space-y-2;
+}
+
+.players-list {
+  @apply mt-6 p-4 bg-gray-50 rounded-md;
+}
+
+button {
+  @apply w-full px-4 py-2 text-white bg-blue-500 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500;
+}
+
+h1 {
+  @apply text-4xl font-bold text-gray-900 mb-8;
+}
+
+h2 {
+  @apply text-2xl font-semibold text-gray-800 mb-4;
+}
+
+h3 {
+  @apply text-xl font-medium text-gray-700 mb-3;
+}
+
+p {
+  @apply text-gray-600 mb-2;
+}
