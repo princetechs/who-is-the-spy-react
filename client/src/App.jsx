@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react';
-import { io } from 'socket.io-client';
 import './App.css';
 import wordLists from './config/wordLists.json';
-
-const socket = io(import.meta.env.PROD ? window.location.origin : 'http://localhost:3000', {
-  path: '/api/socket'
-});
+import GameLobby from './components/GameLobby';
+import gameService from './services/gameService';
+import socketService from './services/socketService';
 
 function App() {
   const [connected, setConnected] = useState(false);
@@ -15,45 +13,48 @@ function App() {
   const [gameStarted, setGameStarted] = useState(false);
   const [playerRole, setPlayerRole] = useState(null);
   const [word, setWord] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('fruits');
-  const [gameMode, setGameMode] = useState('wordlessSpy');
 
   useEffect(() => {
-    socket.on('connect', () => {
+    socketService.socket.on('connect', () => {
       setConnected(true);
       // Auto-rejoin game if we have stored gameId
       const storedGameId = localStorage.getItem('gameId');
       const storedPlayerName = localStorage.getItem('playerName');
       if (storedGameId && storedPlayerName) {
-        socket.emit('joinGame', { gameId: storedGameId, playerName: storedPlayerName });
+        // Add a small delay to ensure proper socket connection
+        setTimeout(() => {
+          socketService.socket.emit('joinGame', { gameId: storedGameId, playerName: storedPlayerName });
+        }, 500);
       }
     });
-    socket.on('disconnect', () => setConnected(false));
+    socketService.socket.on('disconnect', () => setConnected(false));
 
-    socket.on('gameCreated', ({ gameId, game }) => {
+    socketService.socket.on('gameCreated', ({ gameId, game }) => {
       setGameId(gameId);
       setGame(game);
       localStorage.setItem('gameId', gameId);
     });
 
-    socket.on('playerJoined', ({ game }) => {
+    socketService.socket.on('playerJoined', ({ game }) => {
       setGame(game);
     });
 
-    socket.on('gameStarted', ({ isSpy, word }) => {
+    socketService.socket.on('gameStarted', ({ isSpy, word, gameMode }) => {
       setGameStarted(true);
       setPlayerRole(isSpy ? 'Spy' : 'Villager');
-      setWord(word);
+      // Only show word to non-spy players, or in uniqueSpy mode
+      const displayWord = isSpy ? (gameMode === 'uniqueSpy' ? word : '') : word;
+      setWord(displayWord);
       localStorage.setItem('gameStarted', 'true');
       localStorage.setItem('playerRole', isSpy ? 'Spy' : 'Villager');
-      localStorage.setItem('word', word);
+      localStorage.setItem('word', displayWord);
     });
 
-    socket.on('playerLeft', ({ game }) => {
+    socketService.socket.on('playerLeft', ({ game }) => {
       setGame(game);
     });
 
-    socket.on('error', (message) => {
+    socketService.socket.on('error', (message) => {
       alert(message);
       if (message === 'Game not found') {
         localStorage.removeItem('gameId');
@@ -78,13 +79,13 @@ function App() {
     }
 
     return () => {
-      socket.off('connect');
-      socket.off('disconnect');
-      socket.off('gameCreated');
-      socket.off('playerJoined');
-      socket.off('gameStarted');
-      socket.off('playerLeft');
-      socket.off('error');
+      socketService.socket.off('connect');
+      socketService.socket.off('disconnect');
+      socketService.socket.off('gameCreated');
+      socketService.socket.off('playerJoined');
+      socketService.socket.off('gameStarted');
+      socketService.socket.off('playerLeft');
+      socketService.socket.off('error');
     };
   }, []);
 
@@ -96,12 +97,12 @@ function App() {
 
   const createGame = () => {
     if (!playerName) return alert('Please enter your name');
-    socket.emit('createGame', playerName);
+    socketService.socket.emit('createGame', playerName);
   };
 
   const joinGame = () => {
     if (!playerName || !gameId) return alert('Please enter your name and game ID');
-    socket.emit('joinGame', { gameId, playerName });
+    socketService.socket.emit('joinGame', { gameId, playerName });
   };
 
   const endGame = () => {
@@ -114,8 +115,9 @@ function App() {
   };
 
   const startGame = () => {
+    const { selectedCategory, gameMode } = gameService.gameState;
     const words = wordLists[selectedCategory];
-    socket.emit('startGame', { gameId, words, gameMode });
+    socketService.socket.emit('startGame', { gameId, words, gameMode });
   };
 
   if (!connected) return <div className="flex items-center justify-center min-h-screen">Connecting to server...</div>;
@@ -138,44 +140,7 @@ function App() {
   }
 
   if (game) {
-    return (
-      <div className="game-container">
-        <h2>Game Lobby</h2>
-        <p>Game ID: {gameId}</p>
-        <div className="players-list">
-          <h3>Players:</h3>
-          {game.players.map(player => (
-            <div key={player.id} className="p-2 border-b last:border-b-0">{player.name}</div>
-          ))}
-        </div>
-        {game.host === socket.id && (
-          <div className="mt-4 space-y-4">
-            <div className="space-y-4">
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {Object.keys(wordLists).map(category => (
-                  <option key={category} value={category}>
-                    {category.charAt(0).toUpperCase() + category.slice(1)}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={gameMode}
-                onChange={(e) => setGameMode(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="wordlessSpy">Wordless Spy</option>
-                <option value="uniqueSpy">Unique Spy</option>
-              </select>
-            </div>
-            <button onClick={startGame}>Start Game</button>
-          </div>
-        )}
-      </div>
-    );
+    return <GameLobby gameId={gameId} game={game} onStartGame={startGame} />;
   }
 
   return (
@@ -205,4 +170,4 @@ function App() {
   );
 }
 
-export default App
+export default App;

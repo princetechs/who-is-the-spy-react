@@ -69,13 +69,20 @@ class GameService {
     this.updateState({
       playerName: storedPlayerName || '',
       gameId: storedGameId || '',
-      gameStarted: storedGameStarted,
-      playerRole: storedPlayerRole || null,
-      word: storedWord || ''
+      gameStarted: false, // Reset game started state until confirmed by server
+      playerRole: null,
+      word: ''
     });
 
+    // Only attempt to rejoin if we have both gameId and playerName
     if (storedGameId && storedPlayerName) {
-      socketService.joinGame(storedGameId, storedPlayerName);
+      // Set a small delay to ensure socket connection is established
+      setTimeout(() => {
+        socketService.joinGame(storedGameId, storedPlayerName);
+      }, 500);
+    } else {
+      // Clear any partial game state if we don't have complete information
+      this.clearGameState();
     }
   }
 

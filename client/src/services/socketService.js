@@ -3,7 +3,10 @@ import { io } from 'socket.io-client';
 class SocketService {
   constructor() {
     this.socket = io(import.meta.env.PROD ? window.location.origin : 'http://localhost:3000', {
-      path: '/api/socket'
+      path: '/api/socket',
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000
     });
     this.listeners = new Map();
   }
