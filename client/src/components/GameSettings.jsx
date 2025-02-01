@@ -3,7 +3,7 @@ import wordLists from '../config/wordLists.json';
 import gameService from '../services/gameService';
 
 function GameSettings({ onStartGame }) {
-  const { selectedCategory, gameMode } = gameService.gameState;
+  const { selectedCategory, gameMode, preGameTimer, playerTurnTimer } = gameService.gameState;
 
   const handleStartGame = () => {
     const words = wordLists[selectedCategory];
@@ -41,6 +41,28 @@ function GameSettings({ onStartGame }) {
             <option value="wordlessSpy">Wordless Spy</option>
             <option value="uniqueSpy">Unique Spy</option>
           </select>
+        </div>
+        <div className="mb-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Pre-game Timer (seconds)</label>
+          <input
+            type="number"
+            min="10"
+            max="120"
+            value={preGameTimer}
+            onChange={(e) => gameService.setPreGameTimer(Math.max(10, Math.min(120, parseInt(e.target.value) || 30)))}
+            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div className="mb-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Player Turn Timer (seconds)</label>
+          <input
+            type="number"
+            min="30"
+            max="300"
+            value={playerTurnTimer}
+            onChange={(e) => gameService.setPlayerTurnTimer(Math.max(30, Math.min(300, parseInt(e.target.value) || 60)))}
+            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
         </div>
       </div>
       <button 

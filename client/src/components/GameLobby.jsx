@@ -78,7 +78,7 @@ function GameLobby({ gameId, game, onStartGame }) {
         <div className="lg:col-span-1">
           <div className="bg-white p-4 rounded-lg shadow">
             <h3 className="text-lg font-semibold mb-4">Players</h3>
-            <PlayerList players={game.players} />
+            <PlayerList players={game?.players || []} />
             <button
               onClick={handleLeaveLobby}
               className="w-full mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition-colors"

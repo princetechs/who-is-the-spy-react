@@ -14,6 +14,10 @@ class SocketService {
   connect(onConnect, onDisconnect) {
     this.socket.on('connect', onConnect);
     this.socket.on('disconnect', onDisconnect);
+    this.socket.on('error', (error) => {
+      console.error('Socket error:', error);
+      alert(error);
+    });
   }
 
   createGame(hostName) {

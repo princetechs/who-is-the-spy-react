@@ -11,10 +11,20 @@ class GameService {
       playerRole: null,
       word: '',
       selectedCategory: 'fruits',
-      gameMode: 'wordlessSpy'
+      gameMode: 'wordlessSpy',
+      preGameTimer: 30,
+      playerTurnTimer: 60,
+      currentTurn: null,
+      playerOrder: [],
+      turnTimeLeft: 0,
+      preGameTimeLeft: 0
     };
 
     this.listeners = new Set();
+    this.timers = {
+      preGame: null,
+      playerTurn: null
+    };
   }
 
   initialize() {
@@ -37,13 +47,17 @@ class GameService {
       this.updateState({ game });
     });
 
-    socketService.on('gameStarted', ({ isSpy, word, gameMode }) => {
+    socketService.on('gameStarted', ({ isSpy, word, gameMode, playerOrder }) => {
       this.updateState({
         gameStarted: true,
         playerRole: isSpy ? 'Spy' : 'Villager',
-        word
+        word,
+        playerOrder,
+        preGameTimeLeft: this.gameState.preGameTimer,
+        currentTurn: null
       });
       this.saveGameState(isSpy, word);
+      this.startPreGameTimer();
     });
 
     socketService.on('playerLeft', ({ game }) => {
@@ -54,9 +68,76 @@ class GameService {
       if (message === 'Game not found') {
         this.clearGameState();
       }
-      // Emit error to components
       this.notifyListeners({ type: 'error', message });
     });
+
+    socketService.on('turnStarted', ({ playerId, timeLeft }) => {
+      this.updateState({
+        currentTurn: playerId,
+        turnTimeLeft: timeLeft
+      });
+      this.startPlayerTurnTimer();
+    });
+
+    socketService.on('turnEnded', () => {
+      this.clearPlayerTurnTimer();
+    });
+
+    socketService.on('timerUpdate', ({ preGameTimeLeft }) => {
+      this.updateState({ preGameTimeLeft });
+    });
+  }
+
+  startPreGameTimer() {
+    if (this.timers.preGame) clearInterval(this.timers.preGame);
+    
+    this.timers.preGame = setInterval(() => {
+      const timeLeft = this.gameState.preGameTimeLeft - 1;
+      if (timeLeft <= 0) {
+        this.clearPreGameTimer();
+        socketService.socket.emit('preGameComplete', { gameId: this.gameState.gameId });
+      } else {
+        this.updateState({ preGameTimeLeft: timeLeft });
+      }
+    }, 1000);
+  }
+
+  startPlayerTurnTimer() {
+    if (this.timers.playerTurn) clearInterval(this.timers.playerTurn);
+
+    this.timers.playerTurn = setInterval(() => {
+      const timeLeft = this.gameState.turnTimeLeft - 1;
+      if (timeLeft <= 0) {
+        this.clearPlayerTurnTimer();
+        socketService.socket.emit('turnTimeout', { gameId: this.gameState.gameId });
+      } else {
+        this.updateState({ turnTimeLeft: timeLeft });
+      }
+    }, 1000);
+  }
+
+  clearPreGameTimer() {
+    if (this.timers.preGame) {
+      clearInterval(this.timers.preGame);
+      this.timers.preGame = null;
+    }
+    this.updateState({ preGameTimeLeft: 0 });
+  }
+
+  clearPlayerTurnTimer() {
+    if (this.timers.playerTurn) {
+      clearInterval(this.timers.playerTurn);
+      this.timers.playerTurn = null;
+    }
+    this.updateState({ turnTimeLeft: 0 });
+  }
+
+  setPreGameTimer(seconds) {
+    this.updateState({ preGameTimer: seconds });
+  }
+
+  setPlayerTurnTimer(seconds) {
+    this.updateState({ playerTurnTimer: seconds });
   }
 
   loadStoredState() {
@@ -69,19 +150,16 @@ class GameService {
     this.updateState({
       playerName: storedPlayerName || '',
       gameId: storedGameId || '',
-      gameStarted: false, // Reset game started state until confirmed by server
+      gameStarted: false,
       playerRole: null,
       word: ''
     });
 
-    // Only attempt to rejoin if we have both gameId and playerName
     if (storedGameId && storedPlayerName) {
-      // Set a small delay to ensure socket connection is established
       setTimeout(() => {
         socketService.joinGame(storedGameId, storedPlayerName);
       }, 500);
     } else {
-      // Clear any partial game state if we don't have complete information
       this.clearGameState();
     }
   }
@@ -102,8 +180,15 @@ class GameService {
       gameId: '',
       gameStarted: false,
       playerRole: null,
-      word: ''
+      word: '',
+      currentTurn: null,
+      playerOrder: [],
+      turnTimeLeft: 0,
+      preGameTimeLeft: 0
     });
+
+    this.clearPreGameTimer();
+    this.clearPlayerTurnTimer();
   }
 
   updateState(newState) {
@@ -120,7 +205,6 @@ class GameService {
     this.listeners.forEach(listener => listener(event));
   }
 
-  // Game Actions
   setPlayerName(name) {
     this.updateState({ playerName: name });
     localStorage.setItem('playerName', name);
@@ -163,6 +247,8 @@ class GameService {
   }
 
   cleanup() {
+    this.clearPreGameTimer();
+    this.clearPlayerTurnTimer();
     socketService.cleanup();
     this.listeners.clear();
   }
