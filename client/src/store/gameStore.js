@@ -65,11 +65,22 @@ const useGameStore = create((set, get) => ({
     socketService.socket.emit('startGame', { gameId, words, gameMode });
   },
 
-  endGame: () => {
+  endGame: (gameId) => {
+    // Tell the server we're leaving this game
+    if (gameId) {
+      socketService.leaveLobby(gameId);
+    }
+    
+    // Clear all game-related data from local storage
+    localStorage.removeItem('gameId');
     localStorage.removeItem('gameStarted');
     localStorage.removeItem('playerRole');
     localStorage.removeItem('word');
+    
+    // Reset the game state
     set({
+      gameId: '',
+      game: null,
       gameStarted: false,
       playerRole: null,
       word: ''
@@ -94,7 +105,11 @@ const useGameStore = create((set, get) => ({
     store.setGameId(gameId);
     store.setGame({
       ...game,
-      players: Array.isArray(game?.players) ? [...game.players] : [],
+      players: game?.players ? (
+        Array.isArray(game.players) ? [...game.players] : 
+        typeof game.players === 'object' ? Object.entries(game.players).map(([id, data]) => ({...data, id})) : 
+        []
+      ) : [],
       playerOrder: Array.isArray(game?.playerOrder) ? [...game.playerOrder] : [],
       preGameTimeLeft: store.preGameTimer,
       turnTimeLeft: store.playerTurnTimer,
@@ -112,7 +127,11 @@ const useGameStore = create((set, get) => ({
     
     const updatedGame = {
       ...game,
-      players: Array.isArray(game?.players) ? [...game.players] : [],
+      players: game?.players ? (
+        Array.isArray(game.players) ? [...game.players] : 
+        typeof game.players === 'object' ? Object.entries(game.players).map(([id, data]) => ({...data, id})) : 
+        []
+      ) : [],
       playerOrder: Array.isArray(playerOrder) ? [...playerOrder] : [],
       preGameTimeLeft: store.preGameTimer,
       turnTimeLeft: store.playerTurnTimer,
@@ -160,7 +179,11 @@ const useGameStore = create((set, get) => ({
           preGameTimeLeft: preGameTimeLeft !== undefined ? preGameTimeLeft : state.game.preGameTimeLeft,
           turnTimeLeft: turnTimeLeft !== undefined ? turnTimeLeft : state.game.turnTimeLeft,
           currentTurn: currentTurn !== undefined ? currentTurn : state.game.currentTurn,
-          players: players || state.game.players,
+          players: players ? (
+            Array.isArray(players) ? players : 
+            typeof players === 'object' ? Object.entries(players).map(([id, data]) => ({...data, id})) : 
+            state.game.players
+          ) : state.game.players,
           playerOrder: playerOrder || state.game.playerOrder,
           isPreGameTimerActive: phase === 'preGame',
           isPlayerTurnTimerActive: phase === 'playing'

@@ -7,6 +7,7 @@ class SocketService {
 
   setupEventHandlers() {
     this.io.on('connection', (socket) => {
+      console.log('Socket connected:', socket.id);
       this.connectionHandler.handleConnection(socket);
       this.gameEventHandler.setupEventHandlers(socket);
       socket.on('disconnect', () => this.connectionHandler.handleDisconnect(socket));

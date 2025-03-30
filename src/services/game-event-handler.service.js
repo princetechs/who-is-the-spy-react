@@ -14,6 +14,7 @@ class GameEventHandlerService {
     socket.on('startGame', (data) => this.handleStartGame(socket, data));
     socket.on('preGameComplete', (data) => this.handlePreGameComplete(socket, data));
     socket.on('turnTimeout', (data) => this.handleTurnTimeout(socket, data));
+    socket.on('endGame', (data) => this.handleEndGame(socket, data));
   }
 
   handleCreateGame(socket, hostName) {
@@ -48,10 +49,25 @@ class GameEventHandlerService {
       socket.emit('error', 'Only host can start the game');
       return;
     }
+    
+    // Check if there are enough players (minimum 3)
+    if (game.players.length < 3) {
+      socket.emit('error', 'At least 3 players are required to start the game');
+      return;
+    }
 
     const updatedGame = this.gameService.startGame(gameId, words, gameMode);
     if (!updatedGame) return;
 
+    // Set the preparation time based on player count (more players = more prep time)
+    const basePreparationTime = 30; // base 30 seconds
+    const additionalTimePerPlayer = 5; // 5 seconds per player beyond 3
+    const additionalPlayers = Math.max(0, updatedGame.players.length - 3);
+    const preparationTime = basePreparationTime + (additionalTimePerPlayer * additionalPlayers);
+    
+    updatedGame.preGameTimeLeft = preparationTime;
+
+    // Notify all players about game start with their specific roles
     updatedGame.players.forEach(player => {
       this.io.to(player.id).emit('gameStarted', {
         isSpy: player.id === updatedGame.spy,
@@ -59,10 +75,12 @@ class GameEventHandlerService {
         gameMode,
         playerOrder: updatedGame.playerOrder,
         players: updatedGame.players,
-        preGameTimeLeft: updatedGame.preGameTimeLeft
+        preGameTimeLeft: preparationTime,
+        phase: 'preGame'
       });
     });
 
+    // Start the preparation timer
     this.startPreGameTimer(gameId, updatedGame);
   }
 
@@ -83,29 +101,56 @@ class GameEventHandlerService {
     if (updatedGame) {
       this.io.to(gameId).emit('turnChanged', {
         currentTurn: updatedGame.currentTurn,
-        turnTimeLeft: updatedGame.turnTimeLeft
+        turnTimeLeft: updatedGame.turnTimeLeft,
+        playerOrder: updatedGame.playerOrder
       });
       this.startTurnTimer(gameId, updatedGame);
     }
   }
+  
+  handleEndGame(socket, { gameId }) {
+    const game = this.gameService.getGame(gameId);
+    if (!game) return;
+    
+    // Clear all timers associated with this game
+    this.timerManagementService.clearGameTimer(gameId, 'preGame');
+    this.timerManagementService.clearGameTimer(gameId, 'turn');
+    
+    // Reset game to lobby state
+    game.started = false;
+    game.phase = 'lobby';
+    game.spy = null;
+    game.words = null;
+    game.playerOrder = [];
+    game.currentTurn = null;
+    
+    // Notify all players
+    this.io.to(gameId).emit('gameEnded');
+  }
 
   startPreGameTimer(gameId, game) {
     const timer = setInterval(() => {
-      if (!this.gameService.getGame(gameId)) {
+      const currentGame = this.gameService.getGame(gameId);
+      if (!currentGame) {
         clearInterval(timer);
         return;
       }
 
-      game.preGameTimeLeft--;
+      currentGame.preGameTimeLeft--;
       
+      // Broadcast timer update to all players
       this.io.to(gameId).emit('timerUpdate', { 
-        timeLeft: game.preGameTimeLeft,
-        phase: 'preGame'
+        preGameTimeLeft: currentGame.preGameTimeLeft,
+        turnTimeLeft: currentGame.turnTimeLeft,
+        currentTurn: currentGame.currentTurn,
+        phase: 'preGame',
+        playerOrder: currentGame.playerOrder,
+        gameStatus: 'preGame'
       });
 
-      if (game.preGameTimeLeft <= 0) {
+      if (currentGame.preGameTimeLeft <= 0) {
         clearInterval(timer);
-        this.startGamePhase(gameId, game);
+        this.startGamePhase(gameId, currentGame);
       }
     }, 1000);
 
@@ -115,35 +160,47 @@ class GameEventHandlerService {
   startGamePhase(gameId, game) {
     game.phase = 'playing';
     game.currentTurn = game.playerOrder[0];
-    game.turnTimeLeft = 60;
+    
+    // Set turn time based on player count (fewer players = more time per turn)
+    const baseTurnTime = 60; // 60 seconds base
+    const turnTimeAdjustment = Math.max(0, 5 - game.players.length) * 10; // 10 seconds extra per player below 5
+    game.turnTimeLeft = baseTurnTime + turnTimeAdjustment;
 
+    // Notify all players about game phase change
     this.io.to(gameId).emit('gamePhaseChanged', {
       phase: 'playing',
       currentTurn: game.currentTurn,
-      turnTimeLeft: game.turnTimeLeft
+      turnTimeLeft: game.turnTimeLeft,
+      playerOrder: game.playerOrder
     });
 
+    // Start the first player's turn timer
     this.startTurnTimer(gameId, game);
   }
 
   startTurnTimer(gameId, game) {
     const timer = setInterval(() => {
-      if (!this.gameService.getGame(gameId)) {
+      const currentGame = this.gameService.getGame(gameId);
+      if (!currentGame) {
         clearInterval(timer);
         return;
       }
 
-      game.turnTimeLeft--;
+      currentGame.turnTimeLeft--;
       
+      // Broadcast timer update to all players
       this.io.to(gameId).emit('timerUpdate', {
-        timeLeft: game.turnTimeLeft,
+        preGameTimeLeft: currentGame.preGameTimeLeft,
+        turnTimeLeft: currentGame.turnTimeLeft,
+        currentTurn: currentGame.currentTurn,
         phase: 'playing',
-        currentTurn: game.currentTurn
+        playerOrder: currentGame.playerOrder,
+        gameStatus: 'playing'
       });
 
-      if (game.turnTimeLeft <= 0) {
+      if (currentGame.turnTimeLeft <= 0) {
         clearInterval(timer);
-        this.handleTurnTimeout({ gameId });
+        this.handleTurnTimeout({ id: 'system' }, { gameId });
       }
     }, 1000);
 
